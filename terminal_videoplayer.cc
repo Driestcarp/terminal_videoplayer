@@ -22,6 +22,16 @@ static const std::array<std::string, 256> stringColor = []{
   return arr;
 }();
 
+
+void resize_terminal(int rows, int cols) {
+
+
+    std::cout << "\033[8;" << rows << ";" << cols << "t";
+
+
+    std::cout.flush();
+}
+
 class RollingAverage
 {
   std::array<int, WINDOW_SIZE> window{};
@@ -61,33 +71,6 @@ public:
     return 1;
   }
 };
-
-/*
-struct Color
-{
-  char r{};
-  char g{};
-  char b{};
-
-  std::string getAnsiBackground()
-  {
-    std::string out{"\033[48;2;" 24};
-    out.append(stringColor[r]);
-    out.append(stringColor[g]);
-    out.append(stringColor[b]);
-    return out;
-  }
-
-  std::string getAnsiForeground()
-  {
-    std::string out{"\033[38;2;" 24};
-    out.append(stringColor[r]);
-    out.append(stringColor[g]);
-    out.append(stringColor[b]);
-    return out;
-  }
-};
-*/
 
 struct DoublePixel
 {
@@ -254,6 +237,16 @@ int main(int argc, char** argv) {
     if (arg == "-loop") loop = true;
     else if (arg == "-stats") stats = true;
     else if (arg == "-fps" && i + 1 < argc) fps = std::atof(argv[++i]);
+    else if (arg == "-size" && i + 2 < argc) {
+      int rows = std::atoi(argv[++i]);
+      int cols = std::atoi(argv[++i]);
+      if (rows >= 5 && cols >= 10)
+        resize_terminal(rows, cols);
+      else {
+        std::cerr << "Invalid size parameters. (5 and 10 is minimun)\n";
+        return 1;
+      }
+    }
     else filename = arg;
   }
 
