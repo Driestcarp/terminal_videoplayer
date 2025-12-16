@@ -470,6 +470,7 @@ int main(int argc, char** argv) {
         int total = r + f + w;
         double percent_convert = double(100) / double(total);
 
+        std::cout << "\033[38;2;255;255;255m\033[48;2;0;0;0m\033[" + std::to_string(term_h + 1) + ";0H";
         std::cout << "Total: " << std::setw(6) << total;
         std::cout << " | Read: " << std::setw(6) << r << " - " << std::setprecision(2) << std::setw(4) << r * percent_convert << '%'; 
         std::cout << " | For: " << std::setw(6) << f << " - " << std::setprecision(2) << std::setw(4) << f * percent_convert << '%'; 
