@@ -11,6 +11,7 @@
 #include <iomanip>
 #include <sstream>
 #include <queue>
+#include <algorithm>
 
 #define WINDOW_SIZE 5000
 
@@ -74,51 +75,122 @@ public:
 
 struct DoublePixel
 {
-  uint8_t top_r{};
-  uint8_t top_g{};
-  uint8_t top_b{};
-  uint8_t bottom_r{};
-  uint8_t bottom_g{};
-  uint8_t bottom_b{};
+  uint32_t top{};
+  uint32_t bottom{};
+  uint16_t x{};
+  uint16_t y{};
+
+  uint8_t get_top_r() const {return (0b00000000'00000000'00000000'11111111 & top);}
+  uint8_t get_top_g() const {return (0b00000000'00000000'11111111'00000000 & top) >> 8;}
+  uint8_t get_top_b() const {return (0b00000000'11111111'00000000'00000000 & top) >> 16;}
+  uint8_t get_bottom_r() const {return (0b00000000'00000000'00000000'11111111 & bottom) ;}
+  uint8_t get_bottom_g() const {return (0b00000000'00000000'11111111'00000000 & bottom) >> 8;}
+  uint8_t get_bottom_b() const {return (0b00000000'11111111'00000000'00000000 & bottom) >> 16;}
+
+  void set_top_r(uint8_t val) {top = (top & 0b11111111'11111111'11111111'00000000) | static_cast<uint32_t>(val);}
+  void set_top_g(uint8_t val) {top = (top & 0b11111111'11111111'00000000'11111111) | (static_cast<uint32_t>(val) << 8);}
+  void set_top_b(uint8_t val) {top = (top & 0b11111111'00000000'11111111'11111111) | (static_cast<uint32_t>(val) << 16);}
+  void set_bottom_r(uint8_t val) {bottom = (bottom & 0b11111111'11111111'11111111'00000000) | static_cast<uint32_t>(val);}
+  void set_bottom_g(uint8_t val) {bottom = (bottom & 0b11111111'11111111'00000000'11111111) | (static_cast<uint32_t>(val) << 8);}
+  void set_bottom_b(uint8_t val) {bottom = (bottom & 0b11111111'00000000'11111111'11111111) | (static_cast<uint32_t>(val) << 16);}
 
   DoublePixel(){}
-  DoublePixel(uint8_t top_red, uint8_t top_green, uint8_t top_blue, uint8_t bottom_red, uint8_t bottom_green, uint8_t bottom_blue)
+  DoublePixel(uint8_t top_r, uint8_t top_g, uint8_t top_b, uint8_t bottom_r, uint8_t bottom_g, uint8_t bottom_b, uint32_t x_pos, uint32_t y_pos)
   {
-    top_r = top_red;
-    top_g = top_green;
-    top_b = top_blue;
-    bottom_r = bottom_red;
-    bottom_g = bottom_green;
-    bottom_b = bottom_blue;
+    top = static_cast<uint32_t>(top_r) | (static_cast<uint32_t>(top_g) << 8) | (static_cast<uint32_t>(top_b) << 16);
+    bottom = static_cast<uint32_t>(bottom_r) | (static_cast<uint32_t>(bottom_g) << 8) | (static_cast<uint32_t>(bottom_b) << 16);
+    x = x_pos;
+    y = y_pos;
   }
 
-  std::string getColorChar() const
+  std::string getTopColorChar() const
   {
-    return 
-      "\033[38;2;" + 
-        stringColor[top_r] + ";" +
-        stringColor[top_g] + ";" +
-        stringColor[top_b] + "m" +
-      "\033[48;2;" +
-        stringColor[bottom_r] + ";" +
-        stringColor[bottom_g] + ";" +
-        stringColor[bottom_b] + "m" +
-      "▀";
+    return "\033[38;2;" + 
+      stringColor[get_top_r()] + ";" + 
+      stringColor[get_top_g()] + ";" + 
+      stringColor[get_top_b()] + "m";
+  }
+
+  std::string getBottomColorChar() const
+  {
+    return "\033[48;2;" + 
+      stringColor[get_bottom_r()] + ";" + 
+      stringColor[get_bottom_g()] + ";" + 
+      stringColor[get_bottom_b()] + "m";
+  }
+
+  std::string getPosChar() const
+  {
+    return "\033[" + std::to_string(y + 1) + ";" + std::to_string(x + 1) + "H";
   }
 
   bool operator==(DoublePixel const& other) const
   {
-    return top_r == other.top_r &&
-      top_g == other.top_g &&
-      top_b == other.top_b &&
-      bottom_r == other.bottom_r &&
-      bottom_g == other.bottom_g &&
-      bottom_b == other.bottom_b;
+    return top == other.top && bottom == other.bottom;
   }
 
   bool operator!=(DoublePixel const& other) const
   {
     return !this->operator==(other);
+  }
+
+  bool operator<(DoublePixel other) const
+  {
+    if(top < other.top)
+      return true;
+    else if (top == other.top)
+    {
+      if(bottom < other.bottom)
+        return true;
+      else if (bottom == other.bottom)
+      {
+        if(x < other.x)
+          return true;
+        else
+          return false;
+      }
+      else
+        return false;
+    }
+    else
+      return false;
+  }
+};
+
+class Frame
+{
+  int x_size{};
+  int y_size{};
+  std::vector<DoublePixel> double_pixels{};
+
+public:
+  Frame(int width, int height)
+  {
+    x_size = width;
+    y_size = height;
+    double_pixels = std::vector<DoublePixel>{width * height, DoublePixel{}};
+  }
+
+  void AddDoublePixel(DoublePixel p)
+  {
+    double_pixels.push_back(p);
+  }
+
+  std::vector<DoublePixel> GetDiff(Frame new_frame)
+  {
+    if(x_size != new_frame.x_size || y_size != new_frame.y_size || double_pixels.size() != new_frame.double_pixels.size())
+      return new_frame.double_pixels;
+    
+    
+    std::vector<DoublePixel> diff{};
+    std::vector<DoublePixel>::iterator other_it = new_frame.double_pixels.begin();
+    for(std::vector<DoublePixel>::iterator it = double_pixels.begin(); it != double_pixels.end(); ++it)
+    {
+      if(*it != *other_it)
+        diff.push_back(*other_it);
+      ++other_it;
+    }
+    return diff;
   }
 };
 
@@ -157,11 +229,11 @@ public:
     {
       double_pixels[it_pos] = pixel;
       if(last_change != it_pos - 1)
-        changes.append("\033[" + std::to_string(y_pos + 1) + ";" + std::to_string(x_pos + 1) + "H" + pixel.getColorChar());
+        changes.append("\033[" + std::to_string(y_pos + 1) + ";" + std::to_string(x_pos + 1) + "H" + pixel.getTopColorChar() + pixel.getBottomColorChar() + "▀");
       else if(last_new == pixel)
         changes.append("▀");
       else
-        changes.append(pixel.getColorChar());
+        changes.append(pixel.getTopColorChar() + pixel.getBottomColorChar() + "▀");
       last_change = it_pos;
       last_new = pixel;
     }
@@ -196,7 +268,28 @@ private:
 
 static const char* CURSOR_HOME = "\033[H";
 
-
+std::string PixelVectorToString(std::vector<DoublePixel> v)
+{
+  std::sort(v.begin(), v.end());
+  std::vector<DoublePixel>::iterator pre_it = v.begin();
+  std::vector<DoublePixel>::iterator cur_it = v.begin();
+  std::string str{cur_it->getPosChar() + cur_it->getTopColorChar() + cur_it->getBottomColorChar()};
+  ++cur_it;
+  while (cur_it != v.end())
+  {
+    //existd::cout << cur_it->get_top_r() << ":" << cur_it->get_top_g() << ":" << cur_it->get_top_b() << ":" << cur_it->top << std::endl;
+    if(!(pre_it->x == cur_it->x - 1 && pre_it->y == cur_it->y))
+      str += cur_it->getPosChar();
+    if(pre_it->bottom != cur_it->bottom)
+      str += cur_it->getBottomColorChar();
+    if(pre_it->top != cur_it->top)
+      str += cur_it->getTopColorChar();
+    str += "▀";
+    ++pre_it;
+    ++cur_it;
+  }
+  return str;
+}
 
 inline void appendDoublePixel(
   std::string& out,
@@ -300,6 +393,9 @@ int main(int argc, char** argv) {
   RollingAverage FrameAverage{};
   RollingAverage BufAverage{};
 
+  Frame pre_frame{term_w, term_h};
+  Frame cur_frame{term_w, term_h};
+
   do {
     while (true) {
       start = std::chrono::high_resolution_clock::now();
@@ -316,6 +412,9 @@ int main(int argc, char** argv) {
         ForAverage.reset();
         WriteAverage.reset();*/
       }
+
+      pre_frame = cur_frame;
+      cur_frame = Frame(term_w, term_h);
       screen.newFrame();
       cv::resize(frame, resized, cv::Size(term_w, term_h * 2), 0, 0, cv::INTER_AREA);
 
@@ -335,7 +434,8 @@ int main(int argc, char** argv) {
         for (int x = 0; x < resized.cols; ++x) {
           const cv::Vec3b& top = row_top[x];
           const cv::Vec3b& bot = row_bot[x];
-          screen.nextDoublePixel(DoublePixel{top[2], top[1], top[0], bot[2], bot[1], bot[0]});
+          cur_frame.AddDoublePixel(DoublePixel{top[2], top[1], top[0], bot[2], bot[1], bot[0], x, y/2});
+          //screen.nextDoublePixel(DoublePixel{top[2], top[1], top[0], bot[2], bot[1], bot[0]});
           /*appendDoublePixel(
             ansi_buffer,
             top[2], top[1], top[0],
@@ -351,7 +451,7 @@ int main(int argc, char** argv) {
 
       //ansi_buffer += "\033[0m";
       //(void)write(STDOUT_FILENO, ansi_buffer.data(), ansi_buffer.size());
-      std::string changed = screen.change();
+      std::string changed = PixelVectorToString(pre_frame.GetDiff(cur_frame));
       (void)write(STDOUT_FILENO, changed.data(), changed.size());
 
       if(stats)
