@@ -23,10 +23,10 @@ static const std::array<std::string, 256> stringColor = []{
 }();
 
 
-void resize_terminal(int rows, int cols) {
+void resize_terminal(int x, int y) {
 
 
-    std::cout << "\033[8;" << rows << ";" << cols << "t";
+    std::cout << "\033[8;" << x << ";" << y << "t";
 
 
     std::cout.flush();
@@ -222,7 +222,7 @@ inline void appendDoublePixel(
 
 int main(int argc, char** argv) {
 	if (argc < 2) {
-    std::cout << "Usage: ./termvid <video.mp4> [-loop] [-fps <XX | -1 for uncapped>] [-stats]\n";
+    std::cout << "Usage: ./termvid <video.mp4> [-loop] [-fps <XX | -1 for uncapped>] [-stats] [-size <cols> <rows>]\n";
     return 1;
   }
 
@@ -239,9 +239,9 @@ int main(int argc, char** argv) {
     else if (arg == "-fps" && i + 1 < argc) fps = std::atof(argv[++i]);
     else if (arg == "-size" && i + 2 < argc) {
       int rows = std::atoi(argv[++i]);
-      int cols = std::atoi(argv[++i]);
-      if (rows >= 5 && cols >= 10)
-        resize_terminal(rows, cols);
+      int cols = std::atoi(argv[++i]) * 2;
+      if (rows >= 5 && cols >= 5)
+        resize_terminal(cols, rows);
       else {
         std::cerr << "Invalid size parameters. (5 and 10 is minimun)\n";
         return 1;
