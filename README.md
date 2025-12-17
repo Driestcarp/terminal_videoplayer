@@ -45,12 +45,12 @@ make term_vid
 
 ## Flags
 
-Flag                Description
-------------------  ---------------------------------------------
--loop               Loops the video
--fps <value>        Sets max FPS (-1 for uncapped)
--stats              Shows playback statistics
--size <cols> <rows> Sets terminal window size
+| Flag                | Description |
+| ------------------  | --------------------------------------------- |
+| -loop               | Loops the video |
+| -fps <value>        | Sets max FPS (-1 for uncapped) |
+| -stats              | Shows playback statistics |
+| -size <cols> <rows> | Sets terminal window size |
 
 ## Supported Formats
 The video player is confirmed to work with:
