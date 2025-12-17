@@ -243,7 +243,7 @@ int main(int argc, char** argv) {
       if (rows >= 5 && cols >= 5)
         resize_terminal(cols, rows);
       else {
-        std::cerr << "Invalid size parameters. (5 and 10 is minimun)\n";
+        std::cerr << "Invalid size parameters. (5 and 5 is minimun)\n";
         return 1;
       }
     }
