@@ -144,7 +144,7 @@ struct DoublePixel
         return true;
       else if (bottom == other.bottom)
       {
-        if(x < other.x)
+        if(x < other.x && y == other.y)
           return true;
         else
           return false;
@@ -194,82 +194,11 @@ public:
   }
 };
 
-class Screen
-{
-public:
-  Screen(int width, int height)
-  {
-    x_size = width;
-    y_size = height;
-    changes.reserve(10'000'000);
-    double_pixels = std::vector<DoublePixel>{width * height, DoublePixel{}};
-    
-  }
-
-  void newSize(int width, int height)
-  {
-    x_size = width;
-    y_size = height;
-    double_pixels = std::vector<DoublePixel>{width * height, DoublePixel{}};
-  }
-
-  void newFrame()
-  {
-    changes.clear();
-    pixel_it = double_pixels.begin();
-    it_pos = 0;
-    last_change = -100;
-    x_pos = 0;
-    y_pos = 0;
-  }
-
-  void nextDoublePixel(DoublePixel const& pixel)
-  {
-    if(*pixel_it != pixel)
-    {
-      double_pixels[it_pos] = pixel;
-      if(last_change != it_pos - 1)
-        changes.append("\033[" + std::to_string(y_pos + 1) + ";" + std::to_string(x_pos + 1) + "H" + pixel.getTopColorChar() + pixel.getBottomColorChar() + "▀");
-      else if(last_new == pixel)
-        changes.append("▀");
-      else
-        changes.append(pixel.getTopColorChar() + pixel.getBottomColorChar() + "▀");
-      last_change = it_pos;
-      last_new = pixel;
-    }
-
-    ++it_pos;
-    ++pixel_it;
-    ++x_pos;
-    if(x_pos >= x_size)
-    {
-      x_pos = 0;
-      ++y_pos;
-    }
-  }
-
-  std::string change() const
-  {
-    return changes + "\033[0m" + "\033[" + std::to_string(y_size + 1) + ";0H";
-  }
-
-private:
-  int x_pos;
-  int y_pos;
-  int x_size;
-  int y_size;
-  int it_pos;
-  int last_change;
-  DoublePixel last_new;
-  std::string changes;
-  std::vector<DoublePixel>::iterator pixel_it;
-  std::vector<DoublePixel> double_pixels;
-};
-
 static const char* CURSOR_HOME = "\033[H";
 
 std::string PixelVectorToString(std::vector<DoublePixel> v)
 {
+  if(v.size() == 0) return "";
   std::sort(v.begin(), v.end());
   std::vector<DoublePixel>::iterator pre_it = v.begin();
   std::vector<DoublePixel>::iterator cur_it = v.begin();
@@ -277,7 +206,6 @@ std::string PixelVectorToString(std::vector<DoublePixel> v)
   ++cur_it;
   while (cur_it != v.end())
   {
-    //existd::cout << cur_it->get_top_r() << ":" << cur_it->get_top_g() << ":" << cur_it->get_top_b() << ":" << cur_it->top << std::endl;
     if(!(pre_it->x == cur_it->x - 1 && pre_it->y == cur_it->y))
       str += cur_it->getPosChar();
     if(pre_it->bottom != cur_it->bottom)
@@ -289,28 +217,6 @@ std::string PixelVectorToString(std::vector<DoublePixel> v)
     ++cur_it;
   }
   return str;
-}
-
-inline void appendDoublePixel(
-  std::string& out,
-  uint8_t r_top, uint8_t g_top, uint8_t b_top,
-  uint8_t r_bot, uint8_t g_bot, uint8_t b_bot,
-  int& prev_r_top, int& prev_g_top, int& prev_b_top,
-  int& prev_r_bot, int& prev_g_bot, int& prev_b_bot
-) {
-  if (r_top != prev_r_top || g_top != prev_g_top || b_top != prev_b_top) {
-    prev_r_top = r_top;
-    prev_g_top = g_top;
-    prev_b_top = b_top;
-    out += "\033[38;2;" + stringColor[r_top] + ";" + stringColor[g_top] + ";" + stringColor[b_top] + "m";
-  }
-  if (r_bot != prev_r_bot || g_bot != prev_g_bot || b_bot != prev_b_bot) {
-    prev_r_bot = r_bot;
-    prev_g_bot = g_bot;
-    prev_b_bot = b_bot;
-    out += "\033[48;2;" + stringColor[r_bot] + ";" + stringColor[g_bot] + ";" + stringColor[b_bot] + "m";
-  }
-  out += "▀";
 }
 
 int main(int argc, char** argv) {
@@ -375,12 +281,6 @@ int main(int argc, char** argv) {
   }
 
   cv::Mat frame, resized;
-  std::string ansi_buffer;
-  ansi_buffer.reserve(10'000'000);
-
-  std::cout << std::string(term_h, '\n');
-
-  Screen screen{term_w, term_h};
 
   std::chrono::time_point<std::chrono::high_resolution_clock> start{};
   std::chrono::time_point<std::chrono::high_resolution_clock> afterRead{};
@@ -407,19 +307,11 @@ int main(int argc, char** argv) {
         been_resized = "Has been resized";
         term_w = w.ws_col;
         term_h = w.ws_row - (stats ? 1 : 0);
-        screen.newSize(term_w, term_h);
-        /*ReadAverage.reset();
-        ForAverage.reset();
-        WriteAverage.reset();*/
       }
 
       pre_frame = cur_frame;
       cur_frame = Frame(term_w, term_h);
-      screen.newFrame();
       cv::resize(frame, resized, cv::Size(term_w, term_h * 2), 0, 0, cv::INTER_AREA);
-
-      ansi_buffer.clear();
-      ansi_buffer += CURSOR_HOME;
 
       if(stats)
         afterRead = std::chrono::high_resolution_clock::now();
@@ -435,22 +327,12 @@ int main(int argc, char** argv) {
           const cv::Vec3b& top = row_top[x];
           const cv::Vec3b& bot = row_bot[x];
           cur_frame.AddDoublePixel(DoublePixel{top[2], top[1], top[0], bot[2], bot[1], bot[0], x, y/2});
-          //screen.nextDoublePixel(DoublePixel{top[2], top[1], top[0], bot[2], bot[1], bot[0]});
-          /*appendDoublePixel(
-            ansi_buffer,
-            top[2], top[1], top[0],
-            bot[2], bot[1], bot[0],
-            prev_r_top, prev_g_top, prev_b_top,
-            prev_r_bot, prev_g_bot, prev_b_bot
-          );*/
         }
       }
 
       if(stats)
         afterFor = std::chrono::high_resolution_clock::now();
-
-      //ansi_buffer += "\033[0m";
-      //(void)write(STDOUT_FILENO, ansi_buffer.data(), ansi_buffer.size());
+        
       std::string changed = PixelVectorToString(pre_frame.GetDiff(cur_frame));
       (void)write(STDOUT_FILENO, changed.data(), changed.size());
 
